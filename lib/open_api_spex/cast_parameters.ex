@@ -75,7 +75,6 @@ defmodule OpenApiSpex.CastParameters do
     }
   end
 
-
   # Extract context information from parameters, useful later when casting
   defp parameters_contexts(parameters) do
     Map.new(parameters, fn parameter ->
@@ -132,8 +131,17 @@ defmodule OpenApiSpex.CastParameters do
     |> maybe_combine_params(schema, parameters_contexts)
     |> pre_parse_parameters(parameters_contexts, parsers)
     |> case do
-      {:error, _} = err -> err
-      params -> Cast.cast(schema, params, components.schemas, opts)
+      {:error, _} = err ->
+        err
+
+      params ->
+        Cast.cast(%Cast{
+          schema: schema,
+          value: params,
+          schemas: components.schemas,
+          opts: opts,
+          read_write_scope: :write
+        })
     end
   end
 

@@ -251,6 +251,57 @@ defmodule OpenApiSpec.CastTest do
 
       assert {:ok, %{data: "default"}} == cast(value: %{}, schema: schema)
     end
+
+    test "required fields respect read_write_scope" do
+      schema = %Schema{
+        type: :object,
+        required: [:data],
+        properties: %{
+          data: %Schema{
+            type: :string,
+            readOnly: true
+          }
+        }
+      }
+
+      assert {:ok, %{}} == cast(value: %{}, schema: schema, read_write_scope: :write)
+      assert {:error, errors} = cast(value: %{}, schema: schema, read_write_scope: :read)
+      assert {:error, ^errors} = cast(value: %{}, schema: schema)
+
+      assert [error] = errors
+      assert %Error{} = error
+      assert error.reason == :missing_field
+      assert error.path == [:data]
+      assert Error.message_with_path(error) == "#/data: Missing field: data"
+
+      assert {:ok, data} =
+               cast(value: %{"data" => "string"}, schema: schema, read_write_scope: :write)
+
+      assert {:ok, ^data} =
+               cast(value: %{"data" => "string"}, schema: schema, read_write_scope: :read)
+
+      assert {:ok, ^data} = cast(value: %{"data" => "string"}, schema: schema)
+    end
+  end
+
+  describe "opts" do
+    test "read_write_scope" do
+      schema = %Schema{
+        type: :object,
+        properties: %{
+          id: %Schema{type: :string, readOnly: true},
+          name: %Reference{"$ref": "#/components/schemas/Name"},
+          age: %Schema{type: :integer}
+        },
+        required: [:id, :name, :age]
+      }
+
+      schemas = %{"Name" => %Schema{type: :string, readOnly: true}}
+
+      value = %{"age" => 30}
+      assert {:error, _} = Cast.cast(schema, value, schemas, [])
+      assert {:ok, %{age: 30}} == Cast.cast(schema, value, schemas, read_write_scope: :write)
+    end
   end
 
   describe "ok/1" do
