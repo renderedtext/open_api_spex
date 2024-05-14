@@ -116,7 +116,12 @@ defmodule PlugApp.UserHandler do
 
     def render(user) do
       %{
-        data: Map.take(user, [:id, :name, :email])
+        data: %{
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          inserted_at: DateTime.from_naive!(user.inserted_at, "Etc/UTC")
+        }
       }
       |> Jason.encode!(pretty: true)
     end
