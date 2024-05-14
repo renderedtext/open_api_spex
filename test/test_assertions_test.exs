@@ -120,6 +120,18 @@ defmodule OpenApiSpex.TestAssertionsTest do
       TestAssertions.assert_operation_response(conn)
     end
 
+    test "success with a response code range" do
+      conn =
+        :get
+        |> Plug.Test.conn("/api/response_code_ranges")
+        |> Plug.Conn.put_req_header("content-type", "application/json")
+
+      conn = OpenApiSpexTest.Router.call(conn, [])
+
+      assert conn.status == 200
+      TestAssertions.assert_operation_response(conn, "response_code_ranges")
+    end
+
     test "missing operation id" do
       conn =
         :get
@@ -129,14 +141,11 @@ defmodule OpenApiSpex.TestAssertionsTest do
       conn = OpenApiSpexTest.Router.call(conn, [])
       assert conn.status == 200
 
-      try do
-        TestAssertions.assert_operation_response(conn, "not_a_real_operation_id")
-        raise RuntimeError, "Should flunk"
-      rescue
-        e in ExUnit.AssertionError ->
-          assert e.message =~
-                   "Failed to resolve schema. Unable to find a response for operation_id: not_a_real_operation_id for response status code: 200"
-      end
+      assert_raise(
+        ExUnit.AssertionError,
+        ~r/Failed to resolve a response schema for operation_id: not_a_real_operation_id for status code: 200/,
+        fn -> TestAssertions.assert_operation_response(conn, "not_a_real_operation_id") end
+      )
     end
 
     test "invalid schema" do
@@ -149,14 +158,29 @@ defmodule OpenApiSpex.TestAssertionsTest do
 
       assert conn.status == 200
 
-      try do
-        TestAssertions.assert_operation_response(conn, "showPetById")
-        raise RuntimeError, "Should flunk"
-      rescue
-        e in ExUnit.AssertionError ->
-          assert e.message =~
-                   "Value does not conform to schema PetResponse: Failed to cast value to one of: no schemas validate at"
-      end
+      assert_raise(
+        ExUnit.AssertionError,
+        ~r/Value does not conform to schema PetResponse: Failed to cast value to one of: no schemas validate at/,
+        fn -> TestAssertions.assert_operation_response(conn, "showPetById") end
+      )
+    end
+
+    test "returns an error when the response content-type does not match the schema" do
+      conn =
+        :get
+        |> Plug.Test.conn("/api/pets")
+        |> Plug.Conn.put_req_header("content-type", "application/json")
+        |> Plug.Conn.put_resp_header("content-type", "unexpected-content-type")
+
+      conn = OpenApiSpexTest.Router.call(conn, [])
+
+      assert conn.status == 200
+
+      assert_raise(
+        ExUnit.AssertionError,
+        ~r/Failed to resolve a response schema for operation_id: showPetById for status code: 200 and content type: unexpected-content-type/,
+        fn -> TestAssertions.assert_operation_response(conn, "showPetById") end
+      )
     end
   end
 end
